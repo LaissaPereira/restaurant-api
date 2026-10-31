@@ -1,4 +1,4 @@
-using RestaurantApi.Enums;
+
 
 namespace RestaurantApi.Models;
 
@@ -11,8 +11,9 @@ public class Order
     public int Quantity { get; set; }
     public decimal UnitPrice => Menu?.Price ?? 0;
     public decimal TotalPrice => UnitPrice * Quantity;
-    public OrderStatus OrderStatus { get; set; }
+    public OrderStatus Status { get; set; } = OrderStatus.Pending;
+    public DateOnly Date { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
-    public PreReceipt? PreReceipt { get; set; }
+   
 }

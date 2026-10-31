@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace RestaurantApi.DTOs.Menus;
 
-public record CreateMenuDTO(
+public record CreateMenuRequestDto(
     [property: Required] 
     [property: StringLength(100, MinimumLength = 2)]
     string Name,
@@ -12,7 +12,7 @@ public record CreateMenuDTO(
     string Description,
 
     [property: Required] 
-    [property: Range(0.01, double.MaxValue)]
+    [property: Range(typeof(decimal), "0.01", "1000000", ParseLimitsInInvariantCulture = true  )]
     decimal Price
 );
 

@@ -1,14 +1,14 @@
-using RestaurantApi.Enums;
+using RestaurantApi.Models;
+
 namespace RestaurantApi.DTOs.Orders;
 
-
-public record OrderResponseDTO(
+public record OrderResponseDto(
     Guid Id,
     Guid MenuId,
     string? OrderName,
     int Quantity,
     decimal UnitPrice,
+    decimal TotalPrice,
     OrderStatus Status,
-    DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt
+    DateOnly Date
 );

@@ -1,5 +1,5 @@
-using System;
-namespace RestaurantApi.Enums;
+
+namespace RestaurantApi.Models;
 
 public enum OrderStatus
 {

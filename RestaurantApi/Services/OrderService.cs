@@ -1,5 +1,5 @@
 using RestaurantApi.Models;
-using RestaurantApi.Enums;
+using RestaurantApi.DTOs.Orders;
 using RestaurantApi.Services.Interfaces;
 using RestaurantApi.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -15,44 +15,67 @@ public sealed class OrderService : IOrderService
         _dbContext = dbContext;
     }
 
-    public async Task<Order?> GetByIdAsync(Guid id)
+    public async Task<IReadOnlyList<Order>> ListAsync(string? search = null, DateOnly? startDate = null, DateOnly? endDate = null)
     {
+        var query = _dbContext.Orders.Include(o => o.Menu).AsQueryable();
+
+        if (startDate is not null)
+        {
+            query = query.Where(o => o.Date >= startDate.Value);
+        }
+
+        if (endDate is not null)
+        {
+            query = query.Where(o => o.Date <= endDate.Value);
+        }
+
+        // Most recent orders first
+        var orders = await query.OrderByDescending(o => o.Date).ToListAsync();
+
+        // Status is stored as an integer, so the text search runs in memory 
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            orders = orders
+                .Where(o => o.Status.ToString().Contains(term, StringComparison.OrdinalIgnoreCase)
+                    || (o.OrderName?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false))
+                .ToList();
+
+            //Example: /orders?search=pizza&startDate=2026-10-28&endDate=2026-10-30
+        }
+
+        return orders;
+    }
+
+     public async Task<Order?> GetByIdAsync(Guid id)
+    {
+        //Operation to get an order by its ID
         return await _dbContext.Orders
             .Include(o => o.Menu)
             .FirstOrDefaultAsync(o => o.Id == id);
     }
 
-    public async Task<IReadOnlyList<Order>> ListAsync(string? search = null)
+    public async Task<Order?> CreateAsync( CreateOrderRequestDto createOrderRequest)
     {
-        var query = _dbContext.Orders.Include(o => o.Menu).AsQueryable();
-
-        if(!string.IsNullOrEmpty(search))
-        {
-            var trimmedSearch = search.Trim();
-            query = query.Where(o => o.Menu != null && o.Menu.Name.Contains(trimmedSearch));
-        }
-
-        var orders = await query.ToListAsync();
-        return orders;
-    }
-
-    public async Task<Order?> CreateAsync(Guid menuId, int quantity, OrderStatus orderStatus = OrderStatus.Pending)
-    {
-       var menu = await _dbContext.Menus.FindAsync(menuId);
+        //Check if the menu exists for the given menu ID
+       var menu = await _dbContext.Menus.FindAsync(createOrderRequest.MenuId);
        if (menu is null)
        {
            throw new BadHttpRequestException(
-                $"Menu with ID '{menuId}' was not found",
+                $"Menu with ID '{createOrderRequest.MenuId}' was not found",
                 StatusCodes.Status400BadRequest);
        }
 
+        //Create a new order instance with the provided details and default status as Pending
        var order = new Order
        {
            Id = Guid.NewGuid(),
-           MenuId = menuId,
+           MenuId = createOrderRequest.MenuId,
            Menu = menu,
-           Quantity = quantity,
-           OrderStatus = orderStatus,
+           Quantity = createOrderRequest.Quantity,
+           Status = OrderStatus.Pending,
+           Date = createOrderRequest.Date!.Value,
+        
            CreatedAt = DateTimeOffset.UtcNow,
            UpdatedAt = DateTimeOffset.UtcNow
        };
@@ -63,8 +86,9 @@ public sealed class OrderService : IOrderService
 
     }
 
-    public async Task<Order?> UpdateAsync(Guid id, Guid? menuId, int? quantity)
+    public async Task<Order?> UpdateAsync(Guid id, UpdateOrderRequestDto updateOrderRequest)
     {
+        //Check if the order exists for the given ID and include the associated menu
         var order = await _dbContext.Orders
             .Include(o => o.Menu)
             .FirstOrDefaultAsync(o => o.Id == id);
@@ -74,37 +98,33 @@ public sealed class OrderService : IOrderService
             return null;
         }
 
-        if (menuId is not null && menuId.Value != order.MenuId)
+        //Operation to update the menu if a new menu ID is provided and it is different from the current one
+        if (updateOrderRequest.MenuId is not null && updateOrderRequest.MenuId.Value != order.MenuId)
         {
-            var menu = await _dbContext.Menus.FindAsync(menuId.Value);
+            var menu = await _dbContext.Menus.FindAsync(updateOrderRequest.MenuId.Value);
             if (menu is null)
             {
                 throw new BadHttpRequestException(
-                    $"Menu with ID '{menuId}' was not found",
+                    $"Menu with ID '{updateOrderRequest.MenuId}' was not found",
                     StatusCodes.Status400BadRequest);
             }
-            order.MenuId = menuId.Value;
+            order.MenuId = updateOrderRequest.MenuId.Value;
             order.Menu = menu;
         }
-        if (quantity is not null)
-        {
-            order.Quantity = quantity.Value;
-        }
-        order.UpdatedAt = DateTimeOffset.UtcNow;
-        await _dbContext.SaveChangesAsync();
-        return order;
-    }
 
-    public async Task<Order?> UpdateStatusAsync(Guid id, OrderStatus status)
-    {
-        var order = await _dbContext.Orders
-            .Include(o => o.Menu)
-            .FirstOrDefaultAsync(o => o.Id == id);
-        if (order is null)
+        //Operation to update the quantity if provided and it is different from the current one
+        if (updateOrderRequest.Quantity is not null)
         {
-            return null;
+            order.Quantity = updateOrderRequest.Quantity.Value;
         }
-        order.OrderStatus = status;
+        //Operation to update the status if provided and it is different from the current one
+        if (updateOrderRequest.Status is not null)
+        {
+            order.Status = updateOrderRequest.Status.Value;
+        }
+
+
+        //Update the timestamp to reflect the modification
         order.UpdatedAt = DateTimeOffset.UtcNow;
         await _dbContext.SaveChangesAsync();
         return order;
@@ -112,11 +132,13 @@ public sealed class OrderService : IOrderService
 
     public async Task<bool> DeleteAsync(Guid id)
     {
+        //Check if the order exists for the given ID before attempting deletion
         var order = await _dbContext.Orders.FindAsync(id);
         if (order is null)
         {
             return false;
         }
+        //Operation to remove the order from the database
         _dbContext.Orders.Remove(order);
         await _dbContext.SaveChangesAsync();
         return true;

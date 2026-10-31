@@ -1,19 +1,18 @@
 using RestaurantApi.Models;
-using RestaurantApi.Enums;
+using RestaurantApi.DTOs.Orders;
+
+
 namespace RestaurantApi.Services.Interfaces;
 
 public interface IOrderService
 {
+    Task<IReadOnlyList<Order>> ListAsync(string? search = null, DateOnly? startDate = null, DateOnly? endDate = null);
     
     Task<Order?> GetByIdAsync(Guid id);
 
-    Task<IReadOnlyList<Order>> ListAsync(string? search = null);
+    Task<Order?> CreateAsync(CreateOrderRequestDto createOrderRequest);
 
-    Task<Order?> CreateAsync(Guid menuId, int quantity, OrderStatus orderStatus = OrderStatus.Pending);
-
-    Task<Order?> UpdateAsync(Guid id, Guid? menuId, int? quantity);
-
-    Task<Order?> UpdateStatusAsync(Guid id, OrderStatus status);
+    Task<Order?> UpdateAsync(Guid id, UpdateOrderRequestDto updateOrderRequest);
 
     Task<bool> DeleteAsync(Guid id);
 }

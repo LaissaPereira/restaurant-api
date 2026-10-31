@@ -1,6 +1,6 @@
 namespace RestaurantApi.DTOs.Menus;
 
-public record MenuResponseDTO(
+public record MenuResponseDto(
     Guid Id,
     string Name,
     string Description,

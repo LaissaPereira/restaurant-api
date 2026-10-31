@@ -55,13 +55,16 @@ namespace RestaurantApi.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("MenuId")
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("OrderStatus")
+                    b.Property<int>("Quantity")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("Quantity")
+                    b.Property<int>("Status")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
@@ -72,26 +75,6 @@ namespace RestaurantApi.Migrations
                     b.HasIndex("MenuId");
 
                     b.ToTable("Orders");
-                });
-
-            modelBuilder.Entity("RestaurantApi.Models.PreReceipt", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("OrderId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset>("PreReceiptDate")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrderId")
-                        .IsUnique();
-
-                    b.ToTable("PreReceipts", (string)null);
                 });
 
             modelBuilder.Entity("RestaurantApi.Models.Order", b =>
@@ -105,25 +88,9 @@ namespace RestaurantApi.Migrations
                     b.Navigation("Menu");
                 });
 
-            modelBuilder.Entity("RestaurantApi.Models.PreReceipt", b =>
-                {
-                    b.HasOne("RestaurantApi.Models.Order", "Order")
-                        .WithOne("PreReceipt")
-                        .HasForeignKey("RestaurantApi.Models.PreReceipt", "OrderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Order");
-                });
-
             modelBuilder.Entity("RestaurantApi.Models.Menu", b =>
                 {
                     b.Navigation("Orders");
-                });
-
-            modelBuilder.Entity("RestaurantApi.Models.Order", b =>
-                {
-                    b.Navigation("PreReceipt");
                 });
 #pragma warning restore 612, 618
         }
