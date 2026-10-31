@@ -1,6 +1,6 @@
 # Restaurant API
 
-A minimal-API ASP.NET Core backend for managing a restaurant's menu, orders, and pre-receipts, built with EF Core and SQLite.
+A minimal-API ASP.NET Core backend for managing a restaurant's menu and orders, with a summary report, built with EF Core and SQLite.
 
 ## Tech stack
 
@@ -12,24 +12,24 @@ A minimal-API ASP.NET Core backend for managing a restaurant's menu, orders, and
 
 ```
 RestaurantApi/
-├── DTOs/                # Request/response records (Menus, Orders, PreReceipts)
-├── Endpoints/           # Minimal API route groups (MenuEndpoints, OrderEndpoints, PreReceiptEndpoints)
-├── Enums/               # OrderStatus
+├── DTOs/                # Request/response records (Menus, Orders, Reports)
+├── Endpoints/           # Minimal API route groups (MenuEndpoints, OrderEndpoints, ReportEndpoints)
 ├── Filters/             # RejectEmptyIdFilter (rejects Guid.Empty route ids)
 ├── Infrastructure/      # ApplicationDbContext (EF Core model + relationships)
 ├── Migrations/          # EF Core migrations
-├── Models/               # Menu, Order, PreReceipt entities
-├── Services/            # Business logic (MenuService, OrderService, PreReceiptService)
+├── Models/              # Menu, Order entities and the OrderStatus enum
+├── Services/            # Business logic (MenuService, OrderService, ReportService)
 └── Program.cs           # App composition root
+scripts/
+└── seed.sh              # Loads sample menus and orders through the running API
 ```
 
 ## Domain model
 
 - **Menu** — a dish with a name, description, and price. Has many `Orders`.
-- **Order** — an order for a quantity of a given `Menu`, with an `OrderStatus` (`Pending`, `InProgress`, `Completed`, `Cancelled`). `UnitPrice`/`TotalPrice` are computed from the related `Menu`.
-- **PreReceipt** — a receipt generated for a **Completed** order (one-to-one with `Order`). `OrderName`/`UnitPrice`/`TotalPrice` are computed from the related `Order` (and its `Menu`).
+- **Order** — an order for a quantity of a given `Menu` on a given `Date`, with an `OrderStatus` (`Pending`, `InProgress`, `Completed`, `Cancelled`). `UnitPrice`/`TotalPrice` are computed from the related `Menu`.
 
-Relationships: `Menu` 1─* `Order` (`Restrict` on delete — a menu with existing orders can't be deleted), `Order` 1─1 `PreReceipt` (`Cascade` on delete — deleting an order removes its receipt).
+Relationship: `Menu` 1─* `Order` (`Restrict` on delete — a menu with existing orders can't be deleted).
 
 ## Getting started
 
@@ -74,17 +74,58 @@ dotnet ef database update
 | Resource | Endpoints |
 |---|---|
 | **Menus** | `GET /menus`, `GET /menus/{id}`, `POST /menus`, `PATCH /menus/{id}`, `DELETE /menus/{id}` |
-| **Orders** | `GET /orders?search=`, `GET /orders/{id}`, `POST /orders`, `PATCH /orders/{id}`, `PATCH /orders/{id}/status`, `DELETE /orders/{id}` |
-| **PreReceipts** | `GET /preReceipts`, `GET /preReceipts/{id}`, `POST /preReceipts`, `DELETE /preReceipts/{id}` |
+| **Orders** | `GET /orders`, `GET /orders/{id}`, `POST /orders`, `PATCH /orders/{id}`, `DELETE /orders/{id}` |
+| **Reports** | `GET /reports/summary?startDate=&endDate=` |
 
 `PATCH` endpoints are partial updates — only the fields present in the request body are changed; omitted fields keep their current value.
+
+### Dates
+
+Dates are `DateOnly` values and must use ISO format `yyyy-MM-dd`, quoted in JSON bodies (e.g. `"date": "2026-10-31"`). Other formats such as `31-10-2026` are rejected with `400 Bad Request`.
+
+### Listing orders
+
+`GET /orders` returns orders sorted by date, newest first. All query parameters are optional and can be combined:
+
+| Parameter | Description |
+|---|---|
+| `startDate` | Only orders on or after this date |
+| `endDate` | Only orders on or before this date |
+| `search` | Case-insensitive text matched against the order status or menu name |
+
+Example: `GET /orders?search=pizza&startDate=2026-10-28&endDate=2026-10-30`. If `startDate` is after `endDate`, the API returns `400`.
+
+### Summary report
+
+`GET /reports/summary?startDate=2026-10-01&endDate=2026-10-31` (both dates required, inclusive) returns the number of orders in the range, the revenue from `Completed` orders, and a count per status (every status is always present):
+
+```json
+{
+  "startDate": "2026-10-01",
+  "endDate": "2026-10-31",
+  "totalRevenue": 147.00,
+  "totalOrders": 14,
+  "orderStatusSummary": { "Pending": 3, "InProgress": 2, "Completed": 7, "Cancelled": 2 }
+}
+```
 
 ### Typical flow
 
 1. `POST /menus` — create a menu item.
-2. `POST /orders` — place an order against that menu.
-3. `PATCH /orders/{id}/status` — mark the order `Completed`.
-4. `POST /preReceipts` — generate a receipt for the completed order.
+2. `POST /orders` — place an order against that menu (new orders always start as `Pending`).
+3. `PATCH /orders/{id}` with `{ "status": "Completed" }` — change the order's status.
+4. `GET /reports/summary` — see totals and per-status counts for a date range.
+
+### Sample data
+
+With the API running, load sample menus and orders (all four statuses) through the API:
+
+```bash
+./scripts/seed.sh                          # defaults to http://localhost:5262
+./scripts/seed.sh http://localhost:5262    # or pass a base URL
+```
+
+Each run adds new records, so run it once per database. To start over, stop the API and delete `RestaurantApi/restaurant.db`; it is recreated on the next start.
 
 ## Configuration
 
